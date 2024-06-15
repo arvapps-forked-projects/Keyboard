@@ -87,7 +87,9 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
 
     private var mTextColor = 0
     private var mBackgroundColor = 0
+    private var mKeyboardBackgroundColor = 0
     private var mPrimaryColor = 0
+    private var mStrokeColor = 0
     private var mKeyColor = 0
     private var mKeyColorPressed = 0
 
@@ -144,6 +146,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
     private var mKeyBackground: Drawable? = null
     private var mShowKeyBorders: Boolean = false
     private var mUsingSystemTheme: Boolean = true
+    private var mVoiceInputMethod: String = ""
 
     private var mToolbarHolder: View? = null
     private var mClipboardManagerHolder: View? = null
@@ -209,7 +212,9 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
         with(context.safeStorageContext) {
             mTextColor = getProperTextColor()
             mBackgroundColor = getProperBackgroundColor()
+            mKeyboardBackgroundColor = getKeyboardBackgroundColor()
             mPrimaryColor = getProperPrimaryColor()
+            mStrokeColor = getStrokeColor()
         }
 
         mPreviewPopup = PopupWindow(context)
@@ -381,10 +386,13 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
         with(context.safeStorageContext) {
             mTextColor = getProperTextColor()
             mBackgroundColor = getProperBackgroundColor()
+            mKeyboardBackgroundColor = getKeyboardBackgroundColor()
             mPrimaryColor = getProperPrimaryColor()
+            mStrokeColor = getStrokeColor()
 
             mShowKeyBorders = config.showKeyBorders
             mUsingSystemTheme = config.isUsingSystemTheme
+            mVoiceInputMethod = config.voiceInputMethod
         }
 
         val isMainKeyboard = changedView == null || changedView != keyboardPopupBinding?.miniKeyboardView
@@ -396,28 +404,25 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             resources.getDrawable(R.drawable.keyboard_key_selector, context.theme)
         }
 
-        val strokeColor = context.getStrokeColor()
-        val backgroundColor = context.getKeyboardBackgroundColor()
-
         if (!isMainKeyboard) {
             val previewBackground = background as LayerDrawable
-            previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(backgroundColor)
-            previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(strokeColor)
+            previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mKeyboardBackgroundColor)
+            previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(mStrokeColor)
             background = previewBackground
         } else {
-            background.applyColorFilter(backgroundColor)
+            background.applyColorFilter(mKeyboardBackgroundColor)
         }
 
         val rippleBg = resources.getDrawable(R.drawable.clipboard_background, context.theme) as RippleDrawable
         val layerDrawable = rippleBg.findDrawableByLayerId(R.id.clipboard_background_holder) as LayerDrawable
-        layerDrawable.findDrawableByLayerId(R.id.clipboard_background_stroke).applyColorFilter(strokeColor)
+        layerDrawable.findDrawableByLayerId(R.id.clipboard_background_stroke).applyColorFilter(mStrokeColor)
         layerDrawable.findDrawableByLayerId(R.id.clipboard_background_shape).applyColorFilter(mBackgroundColor)
 
         val wasDarkened = mBackgroundColor != mBackgroundColor.darkenColor()
         keyboardViewBinding?.apply {
             topKeyboardDivider.beGoneIf(wasDarkened)
-            topKeyboardDivider.background = ColorDrawable(strokeColor)
-            mToolbarHolder?.background = ColorDrawable(backgroundColor)
+            topKeyboardDivider.background = ColorDrawable(mStrokeColor)
+            mToolbarHolder?.background = ColorDrawable(mKeyboardBackgroundColor)
 
             clipboardValue.apply {
                 background = rippleBg
@@ -429,13 +434,13 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             pinnedClipboardItems.applyColorFilter(mTextColor)
             clipboardClear.applyColorFilter(mTextColor)
             voiceInputButton.applyColorFilter(mTextColor)
-            voiceInputButton.beGoneIf(context.config.voiceInputMethod.isEmpty())
+            voiceInputButton.beGoneIf(mVoiceInputMethod.isEmpty())
 
             mToolbarHolder?.beInvisibleIf(context.isDeviceLocked)
 
             topClipboardDivider.beGoneIf(wasDarkened)
-            topClipboardDivider.background = ColorDrawable(strokeColor)
-            clipboardManagerHolder.background = ColorDrawable(backgroundColor)
+            topClipboardDivider.background = ColorDrawable(mStrokeColor)
+            clipboardManagerHolder.background = ColorDrawable(mKeyboardBackgroundColor)
 
             clipboardManagerClose.applyColorFilter(mTextColor)
             clipboardManagerManage.applyColorFilter(mTextColor)
@@ -445,7 +450,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             clipboardContentPlaceholder2.setTextColor(mTextColor)
         }
 
-        setupEmojiPalette(toolbarColor = backgroundColor, backgroundColor = mBackgroundColor, textColor = mTextColor)
+        setupEmojiPalette(toolbarColor = mKeyboardBackgroundColor, backgroundColor = mBackgroundColor, textColor = mTextColor)
         if (context.config.keyboardLanguage == LANGUAGE_VIETNAMESE_TELEX) {
             setupLanguageTelex()
         } else {
@@ -900,8 +905,8 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
         }
 
         val previewBackground = mPreviewText!!.background as LayerDrawable
-        previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(context.getKeyboardBackgroundColor())
-        previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(context.getStrokeColor())
+        previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mKeyboardBackgroundColor)
+        previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(mStrokeColor)
         mPreviewText!!.background = previewBackground
 
         mPreviewText!!.setTextColor(mTextColor)
@@ -1462,7 +1467,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             emojiPaletteClose.applyColorFilter(textColor)
             emojiPaletteLabel.setTextColor(textColor)
 
-            emojiPaletteBottomBar.background = ColorDrawable(backgroundColor)
+            emojiPaletteBottomBar.background = ColorDrawable(toolbarColor)
             emojiPaletteModeChange.apply {
                 setTextColor(textColor)
                 setOnClickListener {

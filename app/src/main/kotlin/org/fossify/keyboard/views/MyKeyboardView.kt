@@ -46,7 +46,7 @@ import org.fossify.keyboard.databinding.ItemEmojiCategoryBinding
 import org.fossify.keyboard.databinding.KeyboardKeyPreviewBinding
 import org.fossify.keyboard.databinding.KeyboardPopupKeyboardBinding
 import org.fossify.keyboard.databinding.KeyboardViewKeyboardBinding
-import org.fossify.keyboard.dialogs.ChangeLanguagePopup
+import org.fossify.keyboard.dialogs.SwitchLanguageDialog
 import org.fossify.keyboard.extensions.*
 import org.fossify.keyboard.helpers.*
 import org.fossify.keyboard.helpers.MyKeyboard.Companion.KEYCODE_DELETE
@@ -395,7 +395,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             mVoiceInputMethod = config.voiceInputMethod
         }
 
-        val isMainKeyboard = changedView == null || changedView != keyboardPopupBinding?.miniKeyboardView
+        val isMainKeyboard = changedView == null || changedView.id != R.id.mini_keyboard_view
         mKeyColor = getKeyColor()
         mKeyColorPressed = mKeyColor.adjustAlpha(0.2f)
         mKeyBackground = if (mShowKeyBorders && isMainKeyboard) {
@@ -406,7 +406,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
 
         if (!isMainKeyboard) {
             val previewBackground = background as LayerDrawable
-            previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mKeyboardBackgroundColor)
+            previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mBackgroundColor)
             previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(mStrokeColor)
             background = previewBackground
         } else {
@@ -591,6 +591,11 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             val code = key.code
 
             setupKeyBackground(key, code, canvas)
+            val textColor = if (key.pressed) {
+                mTextColor.adjustAlpha(0.5f)
+            } else {
+                mTextColor
+            }
 
             // Switch the character to uppercase if shift is pressed
             val label = adjustCase(key.label)?.toString()
@@ -604,11 +609,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                     paint.typeface = Typeface.DEFAULT
                 }
 
-                paint.color = if (key.focused) {
-                    mPrimaryColor.getContrastColor()
-                } else {
-                    mTextColor
-                }
+                paint.color = textColor
 
                 val rows = label.split("\n")
                 val textSize = paint.textSize
@@ -620,6 +621,12 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                 if (key.topSmallNumber.isNotEmpty() && !(context.config.showNumbersRow && Regex("\\d").matches(key.topSmallNumber))) {
                     val bounds = Rect().also {
                         smallLetterPaint.getTextBounds(key.topSmallNumber, 0, key.topSmallNumber.length, it)
+                    }
+
+                    smallLetterPaint.color = if (key.pressed) {
+                        textColor
+                    } else {
+                        smallLetterPaint.color
                     }
 
                     canvas.drawText(
@@ -643,11 +650,18 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                 }
 
                 if (code == KEYCODE_ENTER) {
-                    key.icon!!.applyColorFilter(mPrimaryColor.getContrastColor())
-                    key.secondaryIcon?.applyColorFilter(mPrimaryColor.getContrastColor().adjustAlpha(0.6f))
+                    val contrastColor = mPrimaryColor.getContrastColor()
+                    key.icon!!.applyColorFilter(contrastColor)
+                    key.secondaryIcon?.applyColorFilter(contrastColor.adjustAlpha(0.6f))
                 } else if (code == KEYCODE_DELETE || code == KEYCODE_SHIFT || code == KEYCODE_EMOJI) {
-                    key.icon!!.applyColorFilter(mTextColor)
-                    key.secondaryIcon?.applyColorFilter(mTextColor.adjustAlpha(0.6f))
+                    key.icon!!.applyColorFilter(textColor)
+                    key.secondaryIcon?.applyColorFilter(
+                        if (key.pressed) {
+                            textColor
+                        } else {
+                            mTextColor.adjustAlpha(0.6f)
+                        }
+                    )
                 }
 
                 val keyIcon = key.icon!!
@@ -694,7 +708,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
 
         // Overlay a dark rectangle to dim the keyboard
         if (mMiniKeyboardOnScreen) {
-            paint.color = Color.BLACK.adjustAlpha(0.3f)
+            paint.color = mKeyboardBackgroundColor.adjustAlpha(0.4f)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
         }
 
@@ -729,14 +743,13 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             }
             keyBackground.applyColorFilter(keyColor)
         } else if (mShowKeyBorders) {
-            if (keyCode != KEYCODE_SPACE || !mUsingSystemTheme) {
-                val keyColor = if (key.pressed) {
-                    mKeyColorPressed
-                } else {
-                    mKeyColor
-                }
-                keyBackground.applyColorFilter(keyColor)
+            val keyColor = if (key.pressed) {
+                mKeyColorPressed
+            } else {
+                mKeyColor
             }
+
+            keyBackground.applyColorFilter(keyColor)
         }
 
         canvas.translate(key.x.toFloat(), key.y.toFloat())
@@ -906,7 +919,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
         }
 
         val previewBackground = mPreviewText!!.background as LayerDrawable
-        previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mKeyboardBackgroundColor)
+        previewBackground.findDrawableByLayerId(R.id.button_background_shape).applyColorFilter(mBackgroundColor)
         previewBackground.findDrawableByLayerId(R.id.button_background_stroke).applyColorFilter(mStrokeColor)
         mPreviewText!!.background = previewBackground
 
@@ -1020,9 +1033,10 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
      */
     private fun onLongPress(popupKey: MyKeyboard.Key, me: MotionEvent): Boolean {
         if (popupKey.code == KEYCODE_EMOJI) {
-            ChangeLanguagePopup(this, onSelect = {
+            setCurrentKeyPressed(false)
+            SwitchLanguageDialog(this) {
                 mOnKeyboardActionListener?.reloadKeyboard()
-            })
+            }
             return true
         } else {
             val popupKeyboardId = popupKey.popupResId
@@ -1222,7 +1236,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                 }
 
                 showPreview(NOT_A_KEY)
-                invalidateKey(mCurrentKey)
+                setCurrentKeyPressed(false)
                 return true
             }
 
@@ -1272,6 +1286,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
 
                 if (mPopupParent.id != R.id.mini_keyboard_view) {
                     showPreview(keyIndex)
+                    setCurrentKeyPressed(true)
                 }
             }
 
@@ -1286,12 +1301,14 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                             mCurrentKeyTime += eventTime - mLastMoveTime
                             continueLongPress = true
                         } else if (mRepeatKeyIndex == NOT_A_KEY) {
+                            setCurrentKeyPressed(false)
                             mLastKey = mCurrentKey
                             mLastCodeX = mLastX
                             mLastCodeY = mLastY
                             mLastKeyTime = mCurrentKeyTime + eventTime - mLastMoveTime
                             mCurrentKey = keyIndex
                             mCurrentKeyTime = 0
+                            setCurrentKeyPressed(true)
                         }
                     }
                 }
@@ -1359,7 +1376,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                 }
 
                 if (mLastKeyPressedCode != KEYCODE_MODE_CHANGE && mLastKeyPressedCode != KEYCODE_SYMBOLS_MODE_CHANGE) {
-                    invalidateKey(keyIndex)
+                    setCurrentKeyPressed(false)
                 }
 
                 mRepeatKeyIndex = NOT_A_KEY
@@ -1374,7 +1391,6 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
                 dismissPopupKeyboard()
                 mAbortKey = true
                 showPreview(NOT_A_KEY)
-                invalidateKey(mCurrentKey)
             }
         }
 
@@ -1395,6 +1411,11 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
             detectAndSendKey(mCurrentKey, key.x, key.y, mLastTapTime)
         }
         return true
+    }
+
+    private fun setCurrentKeyPressed(pressed: Boolean) {
+        mKeys.getOrNull(mCurrentKey)?.pressed = pressed
+        invalidateKey(mCurrentKey)
     }
 
     fun closeClipboardManager() {
@@ -1653,6 +1674,7 @@ class MyKeyboardView @JvmOverloads constructor(context: Context, attrs: Attribut
         if (mPopupKeyboard.isShowing) {
             mPopupKeyboard.dismiss()
             mMiniKeyboardOnScreen = false
+            setCurrentKeyPressed(false)
             invalidateAllKeys()
         }
     }
